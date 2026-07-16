@@ -507,6 +507,58 @@ function spawnHeart() {
   hearts.push({ x: W, y });
 }
 
+// ---- Cabin chime "ding" (synthesized airline seatbelt-style hi-lo two-tone) ----
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      audioCtx = null;
+    }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+function playChimeTone(freq, startTime, duration, peakGain) {
+  // Each tone = fundamental + a soft overtone, with a fast attack and long bell-like decay
+  const osc1 = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  osc1.type = 'sine';
+  osc1.frequency.value = freq;
+  osc2.type = 'sine';
+  osc2.frequency.value = freq * 2; // octave overtone for the metallic bell character
+
+  const overtoneGain = audioCtx.createGain();
+  overtoneGain.gain.value = 0.25;
+
+  osc1.connect(gain);
+  osc2.connect(overtoneGain);
+  overtoneGain.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+  osc1.start(startTime);
+  osc2.start(startTime);
+  osc1.stop(startTime + duration);
+  osc2.stop(startTime + duration);
+}
+
+function playCabinChime() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // Hi-lo two-tone: high note, then lower note overlapping slightly, both ringing out
+  playChimeTone(1046.5, now, 1.4, 0.22);         // C6
+  playChimeTone(880.0, now + 0.35, 1.6, 0.22);   // A5
+}
+
 function collectHeart() {
   heartsCollected++;
   if (heartsCollected === fibB) {
@@ -517,6 +569,7 @@ function collectHeart() {
   }
   rapidRewards += heartValue;
   rewardsLabel.textContent = rapidRewards.toLocaleString() + ' Rapid Rewards Points';
+  playCabinChime();
 }
 
 function spawnCloud() {
@@ -550,6 +603,7 @@ function spawnTower() {
 }
 
 function flap() {
+  ensureAudio();
   if (state === 'ready') {
     state = 'playing';
     overlay.style.display = 'none';
